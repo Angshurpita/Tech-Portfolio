@@ -32,36 +32,24 @@ export default function Contact() {
     setStatusMessage('Establishing secure socket and dispatching direct transmission...');
 
     try {
-      // 1. If an access key exists in .env (e.g. VITE_WEB3FORMS_KEY), use Web3Forms
-      const web3Key = import.meta.env.VITE_WEB3FORMS_KEY;
+      // Configured Web3Forms access key
+      const web3Key = import.meta.env.VITE_WEB3FORMS_KEY || "a8977081-9222-42ff-833e-175502331415";
 
-      const endpoint = web3Key
-        ? 'https://api.web3forms.com/submit'
-        : `https://formsubmit.co/ajax/${targetEmail}`;
+      const payload = {
+        access_key: web3Key,
+        name: formData.name,
+        email: formData.email,
+        replyto: formData.email,
+        subject: formData.subject || `Direct Portfolio Transmission from ${formData.name}`,
+        message: formData.message,
+        from_name: `${formData.name} [Tech Portfolio]`
+      };
 
-      const payload = web3Key
-        ? {
-            access_key: web3Key,
-            name: formData.name,
-            email: formData.email,
-            subject: formData.subject || `Direct Transmission from ${formData.name}`,
-            message: formData.message,
-            from_name: formData.name
-          }
-        : {
-            name: formData.name,
-            email: formData.email,
-            _replyto: formData.email,
-            _subject: formData.subject || `Direct Transmission from ${formData.name} [Tech Portfolio]`,
-            message: formData.message,
-            _template: 'table'
-          };
-
-      // 4-second timeout to prevent hanging if FormSubmit activation is pending or blocked
+      // 6-second timeout controller
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 4000);
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
 
-      const response = await fetch(endpoint, {
+      const response = await fetch('https://api.web3forms.com/submit', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -73,7 +61,9 @@ export default function Contact() {
 
       clearTimeout(timeoutId);
 
-      if (response.ok) {
+      const data = await response.json();
+
+      if (data.success) {
         sound.playSuccess();
         confetti({
           particleCount: 100,
@@ -83,7 +73,7 @@ export default function Contact() {
         setTransmissionStatus('success');
         setStatusMessage(`Transmission dispatched directly to ${targetEmail} from ${formData.email}.`);
       } else {
-        throw new Error('API returned non-200');
+        throw new Error(data.message || 'Transmission failed');
       }
     } catch (err) {
       // Fallback: Instantly open Gmail Web or default mail composer pre-filled with all details
