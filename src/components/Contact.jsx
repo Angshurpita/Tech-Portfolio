@@ -32,22 +32,46 @@ export default function Contact() {
     setStatusMessage('Establishing secure socket and dispatching direct transmission...');
 
     try {
-      // Direct Web Transmission to angshuganguly777@gmail.com via FormSubmit AJAX API
-      const response = await fetch(`https://formsubmit.co/ajax/${targetEmail}`, {
+      // 1. If an access key exists in .env (e.g. VITE_WEB3FORMS_KEY), use Web3Forms
+      const web3Key = import.meta.env.VITE_WEB3FORMS_KEY;
+
+      const endpoint = web3Key
+        ? 'https://api.web3forms.com/submit'
+        : `https://formsubmit.co/ajax/${targetEmail}`;
+
+      const payload = web3Key
+        ? {
+            access_key: web3Key,
+            name: formData.name,
+            email: formData.email,
+            subject: formData.subject || `Direct Transmission from ${formData.name}`,
+            message: formData.message,
+            from_name: formData.name
+          }
+        : {
+            name: formData.name,
+            email: formData.email,
+            _replyto: formData.email,
+            _subject: formData.subject || `Direct Transmission from ${formData.name} [Tech Portfolio]`,
+            message: formData.message,
+            _template: 'table'
+          };
+
+      // 4-second timeout to prevent hanging if FormSubmit activation is pending or blocked
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 4000);
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Accept': 'application/json'
         },
-        body: JSON.stringify({
-          name: formData.name,
-          email: formData.email,
-          _replyto: formData.email,
-          _subject: formData.subject || `Direct Transmission from ${formData.name} [Tech Portfolio]`,
-          message: formData.message,
-          _template: 'table'
-        })
+        body: JSON.stringify(payload),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       if (response.ok) {
         sound.playSuccess();
@@ -59,20 +83,21 @@ export default function Contact() {
         setTransmissionStatus('success');
         setStatusMessage(`Transmission dispatched directly to ${targetEmail} from ${formData.email}.`);
       } else {
-        throw new Error('Endpoint returned non-200');
+        throw new Error('API returned non-200');
       }
     } catch (err) {
-      // Fallback: Open pre-filled mail composer to angshuganguly777@gmail.com
-      const mailtoUrl = `mailto:${targetEmail}?subject=${encodeURIComponent(
+      // Fallback: Instantly open Gmail Web or default mail composer pre-filled with all details
+      const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${targetEmail}&su=${encodeURIComponent(
         formData.subject || `Direct Transmission from ${formData.name}`
       )}&body=${encodeURIComponent(
         `From: ${formData.name} <${formData.email}>\n\nMessage:\n${formData.message}`
       )}`;
-      window.open(mailtoUrl, '_blank');
+
+      window.open(gmailUrl, '_blank');
 
       sound.playSuccess();
       setTransmissionStatus('success');
-      setStatusMessage(`Mail client launched addressed to ${targetEmail} from ${formData.email}.`);
+      setStatusMessage(`Pre-filled Gmail compose tab launched addressed to ${targetEmail} from ${formData.email}.`);
     }
   };
 
